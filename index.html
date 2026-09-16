@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Temp Mail Web Inbox</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 font-sans">
+  <div class="max-w-md mx-auto space-y-4">
+    <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+      <h1 class="text-lg font-bold text-indigo-400">📬 Web Inbox</h1>
+      <button onclick="loadInbox()" class="bg-indigo-600 px-3 py-1 text-sm rounded-md hover:bg-indigo-500">🔄 Refresh</button>
+    </div>
+
+    <!-- Message List View -->
+    <div id="loading" class="text-center py-10 text-gray-400">Loading inbox...</div>
+    <div id="inbox-list" class="space-y-2 hidden"></div>
+
+    <!-- Message Reader View -->
+    <div id="msg-reader" class="hidden bg-gray-800 p-4 rounded-xl space-y-3">
+      <button onclick="showList()" class="text-indigo-400 text-sm font-semibold mb-2">⬅️ Back to Inbox</button>
+      <h2 id="msg-subject" class="text-base font-bold text-white border-b border-gray-700 pb-2"></h2>
+      <div id="msg-from" class="text-xs text-gray-400"></div>
+      <div id="msg-body" class="bg-gray-900 p-3 rounded-lg text-sm text-gray-200 whitespace-pre-wrap max-h-96 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <script>
+    const token = new URLSearchParams(window.location.search).get('token');
+
+    async function loadInbox() {
+      if (!token) {
+        document.getElementById('loading').innerText = '⚠️ Invalid or missing token!';
+        return;
+      }
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('inbox-list').classList.add('hidden');
+
+      try {
+        const res = await fetch('https://api.mail.tm/messages?page=1', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        const listContainer = document.getElementById('inbox-list');
+        listContainer.innerHTML = '';
+
+        if (!data['hydra:member'] || data['hydra:member'].length === 0) {
+          listContainer.innerHTML = '<div class="text-center py-8 text-gray-500">📭 Inbox is empty</div>';
+        } else {
+          data['hydra:member'].forEach(msg => {
+            const item = document.createElement('div');
+            item.className = 'bg-gray-800 p-3 rounded-lg cursor-pointer hover:bg-gray-700 transition';
+            item.onclick = () => readMsg(msg.id);
+            item.innerHTML = `
+              <div class="font-semibold text-sm text-indigo-300 truncate">${msg.subject || 'No Subject'}</div>
+              <div class="text-xs text-gray-400 truncate">From: ${msg.from.address}</div>
+            `;
+            listContainer.appendChild(item);
+          });
+        }
+        document.getElementById('loading').classList.add('hidden');
+        listContainer.classList.remove('hidden');
+      } catch (e) {
+        document.getElementById('loading').innerText = '⚠️ Error loading messages.';
+      }
+    }
+
+    async function readMsg(id) {
+      document.getElementById('inbox-list').classList.add('hidden');
+      document.getElementById('msg-reader').classList.remove('hidden');
+      document.getElementById('msg-body').innerText = 'Loading body...';
+
+      try {
+        const res = await fetch('https://api.mail.tm/messages/' + id, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const msg = await res.json();
+        document.getElementById('msg-subject').innerText = msg.subject || 'No Subject';
+        document.getElementById('msg-from').innerText = 'From: ' + msg.from.address;
+        document.getElementById('msg-body').innerText = msg.text || 'No text content available.';
+      } catch (e) {
+        document.getElementById('msg-body').innerText = '⚠️ Error loading message.';
+      }
+    }
+
+    function showList() {
+      document.getElementById('msg-reader').classList.add('hidden');
+      document.getElementById('inbox-list').classList.remove('hidden');
+    }
+
+    loadInbox();
+  </script>
+</body>
+</html>
